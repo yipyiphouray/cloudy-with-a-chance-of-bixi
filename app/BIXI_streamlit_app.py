@@ -94,6 +94,17 @@ def load_forecast_2025(path: Path) -> pd.DataFrame:
 # -----------------------------
 # Helpers
 # -----------------------------
+import re
+
+def normalize_station_name(s: pd.Series) -> pd.Series:
+    return (
+        s.astype(str)
+         .str.strip()
+         .str.lower()
+         .str.replace(r"\s+", " ", regex=True)
+    )
+
+
 def add_time_features(ts: pd.Timestamp) -> dict:
     hour = int(ts.hour)
     dow = int(ts.dayofweek)  # Mon=0
@@ -273,6 +284,7 @@ except Exception as e:
 
 # Station selection + coords
 station_col = infer_station_col(model_df)
+model_df["_station_key"] = normalize_station_name(model_df[station_col])
 stations = sorted(model_df[station_col].dropna().unique().tolist())
 
 station = st.selectbox("Select station", stations)
@@ -359,16 +371,15 @@ with tab3:
         bt = load_forecast_2025(PROCESSED_DIR/'forecast_2025.parquet').copy()
 
         # infer columns
-        bt[DT_COL] = pd.to_datetime(bt[DT_COL]) if DT_COL in bt.columns else bt.get(DT_COL)
         st_col_bt = infer_station_col(bt) if any(c in bt.columns for c in ["startstationname", "station", "station_name", "name"]) else None
+        bt["_station_key"] = normalize_station_name(bt[st_col_bt])
         actual_col = "total_demand"
         pred_col = "y_pred"
 
-        # filter station if possible
-        if st_col_bt:
-            bt_station = bt[bt[st_col_bt] == station].copy()
-        else:
-            bt_station = bt.copy()
+        # filter station using normalized key
+        selected_key = normalize_station_name(pd.Series([station])).iloc[0]
+
+        bt_station = bt[bt["_station_key"] == selected_key].copy()
 
         # overall metrics (station-filtered)
         bt_station = bt_station.dropna(subset=[actual_col, pred_col])
