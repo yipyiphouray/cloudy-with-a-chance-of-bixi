@@ -229,10 +229,7 @@ def build_feature_row(station_lat: float, station_lon: float, ts: pd.Timestamp, 
     return pd.DataFrame([row], columns=FEATURES)
 
 
-def recursive_24h_forecast(model, hist: pd.DataFrame, station_lat: float, station_lon: float, start_ts: pd.Timestamp, weather: dict):
-    """
-    Recursive 24h rollout. Uses past actuals + prior predictions as context.
-    """
+def recursive_24h_forecast(model, hist, station_lat, station_lon, start_ts, weather_df):
     past = hist.copy()
     past[DT_COL] = pd.to_datetime(past[DT_COL])
     past = past.set_index(DT_COL)[TARGET].sort_index()
@@ -241,13 +238,21 @@ def recursive_24h_forecast(model, hist: pd.DataFrame, station_lat: float, statio
     for h in range(24):
         ts = start_ts + pd.Timedelta(hours=h)
 
+        wrow = weather_df.loc[weather_df["timestamp"] == ts]
+        if wrow.empty:
+            raise ValueError(f"Missing weather for {ts}.")
+        weather = {
+            "temperature": float(wrow["temperature"].iloc[0]),
+            "precipitation": float(wrow["precipitation"].iloc[0]),
+            "wind_speed": float(wrow["wind_speed"].iloc[0]),
+        }
+
         cutoff = ts - pd.Timedelta(hours=1)
         known = past[past.index <= cutoff]
         if known.empty:
             raise ValueError("Not enough history to compute lag features for this station/time.")
 
         lag_1h = float(known.iloc[-1])
-
         t24 = ts - pd.Timedelta(hours=24)
         if t24 in past.index:
             lag_24h = float(past.loc[t24])
@@ -258,24 +263,35 @@ def recursive_24h_forecast(model, hist: pd.DataFrame, station_lat: float, statio
         rolling_3h = float(known.tail(3).mean())
         rolling_24h = float(known.tail(24).mean())
 
-        X = build_feature_row(
-            station_lat=station_lat,
-            station_lon=station_lon,
-            ts=ts,
-            weather=weather,
-            context=(lag_1h, lag_24h, rolling_3h, rolling_24h),
-        )
+        X = build_feature_row(station_lat, station_lon, ts, weather, (lag_1h, lag_24h, rolling_3h, rolling_24h))
+        yhat = max(0.0, float(model.predict(X)[0]))
 
-        yhat = float(model.predict(X)[0])
-        yhat = max(0.0, yhat)
-
-        preds.append({"timestamp": ts, "predicted_demand": yhat})
-
-        # inject prediction into series for next steps
+        preds.append({
+            "timestamp": ts,
+            "predicted_demand": yhat,
+            **weather
+        })
         past.loc[ts] = yhat
 
     return pd.DataFrame(preds)
 
+
+def build_weather_df_from_blocks(start_ts: pd.Timestamp, blocks: dict) -> pd.DataFrame:
+    """
+    blocks: dict like {0: {...}, 1: {...}, ..., 23: {...}}
+    returns df with timestamp, temperature, precipitation, wind_speed for each forecast hour
+    """
+    rows = []
+    for h in range(24):
+        ts = start_ts + pd.Timedelta(hours=h)
+        w = blocks[h]
+        rows.append({
+            "timestamp": ts,
+            "temperature": float(w["temperature"]),
+            "precipitation": float(w["precipitation"]),
+            "wind_speed": float(w["wind_speed"]),
+        })
+    return pd.DataFrame(rows)
 
 
 
@@ -385,14 +401,34 @@ with tab2:
         pd.Timestamp(d2),
         datetime.strptime(f"{start_hour:02d}:00", "%H:%M").time()
     )
+    st.markdown("### Weather assumptions for the next 24 hours (6-hour blocks)")
+
+    blocks = {}
+    for label, hours in [("00–05", range(0,6)), ("06–11", range(6,12)), ("12–17", range(12,18)), ("18–23", range(18,24))]:
+        with st.expander(f"Block {label}", expanded=(label=="00–05")):
+            c1, c2, c3 = st.columns(3)
+        with c1:
+            temp = st.number_input(f"Temp °C ({label})", value=10.0, step=0.5, key=f"temp_{label}")
+        with c2:
+            prec = st.number_input(f"Precip mm ({label})", value=0.0, step=0.5, min_value=0.0, key=f"prec_{label}")
+        with c3:
+            wind = st.number_input(f"Wind m/s ({label})", value=3.0, step=0.5, min_value=0.0, key=f"wind_{label}")
+
+        for h in hours:
+            blocks[h] = {"temperature": temp, "precipitation": prec, "wind_speed": wind}
 
     if st.button("Generate 24-hour forecast"):
         try:
-            fc = recursive_24h_forecast(model, station_hist, station_lat, station_lon, start_ts, weather)
+            weather_df = build_weather_df_from_blocks(start_ts, blocks)
+            st.caption("Weather used for forecast:")
+            st.dataframe(weather_df)
+
+            fc = recursive_24h_forecast(model, station_hist, station_lat, station_lon, start_ts, weather_df)
             st.dataframe(fc)
             st.line_chart(fc.set_index("timestamp")["predicted_demand"])
         except Exception as e:
             st.error(str(e))
+
 
 
 # -----------------------------
@@ -411,7 +447,6 @@ with tab3:
         ).copy()
 
         bt_station = bt_station.dropna(subset=[actual_col, pred_col])
-        
         st.caption(f"Loaded {len(bt_station):,} backtest rows for **{station}**")
 
 
