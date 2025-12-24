@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 import traceback
 
+st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
 
 # -----------------------------
 #PATHS
@@ -23,7 +24,7 @@ PROCESSED_DIR = DATA_DIR / 'processed'
 MODEL_DIR = PROJECT_ROOT / 'models'
 
 
-st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
+
 
 st.markdown("""
 ### What does this app do?
