@@ -27,7 +27,7 @@ Outcome: Actionable forecasts for rebalancing & planning
 1. Setup Environment
 ```bash
 # Clone the repository
-git clone {insert link}
+git clone https://github.com/yipyiphouray/cloudy-with-a-chance-of-bixi.git
 cd cloudy_with_a_chance_of_bixi
 
 # Install dependencies
@@ -35,9 +35,10 @@ pip install -r requirements.txt
 
 # Run the Streamlit app
 streamlit run app/BIXI_streamlit_app.py
+'''
 
-```
 ## 📁 Project Structure
+'''
 ├── app/                          # Streamlit dashboard source code
 ├── data/                         # Minimal processed artifacts required for the live demo
 ├── figures/                      # Model evaluation plots used in reports and documentation
@@ -54,12 +55,13 @@ streamlit run app/BIXI_streamlit_app.py
 │   ├── 03_Feature Engineering.ipynb # Sinusoidal encoding, lags, and weather integration
 │   ├── 04_Post-FE_EDA.ipynb      # EDA for Post Feature Engineering
 │   ├── 05_Modeling.ipynb         # Model training, hyperparameter tuning, and selection
-│   └── 06_Backtesting.ipynb      # Performance validation on out-of-sample 2025 data
+│   └── 06_Backtesting_forecast.ipynb      # Performance validation on out-of-sample 2025 data
 ├── report/                       # Formal documentation
 │   └── BIXI_Full_Report.pdf      # Detailed business and technical project report
 ├── .gitignore                    # Prevents large datasets and temporary files from being committed
 ├── README.md                     # Project overview and instructions
 └── requirements.txt              # Environment dependencies for reproducibility
+'''
 
 ## 📊 Data & Model Note
 
