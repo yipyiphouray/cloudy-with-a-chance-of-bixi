@@ -82,6 +82,14 @@ def load_model_df(path: Path) -> pd.DataFrame:
     df["starttime_hourly"] = pd.to_datetime(df["starttime_hourly"])
     return df
 
+@st.cache_data(show_spinner=False)
+def load_forecast_2025(path: Path) -> pd.DataFrame:
+    keep_cols = ["startstationname", "starttime_hourly", "total_demand", "y_pred"]
+    df = pd.read_parquet(path, columns=keep_cols)
+    df["startstationname"] = df["startstationname"].astype("category")
+    df["starttime_hourly"] = pd.to_datetime(df["starttime_hourly"])
+    return df
+
 
 # -----------------------------
 # Helpers
@@ -348,7 +356,7 @@ with tab3:
     st.subheader("Backtesting results (from forecast_2025.parquet)")
 
     try:
-        bt = load_model_df(PROCESSED_DIR/'forecast_2025.parquet').copy()
+        bt = load_forecast_2025(PROCESSED_DIR/'forecast_2025.parquet').copy()
 
         # infer columns
         bt[DT_COL] = pd.to_datetime(bt[DT_COL]) if DT_COL in bt.columns else bt.get(DT_COL)
