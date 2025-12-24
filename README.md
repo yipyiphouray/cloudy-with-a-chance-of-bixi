@@ -38,29 +38,29 @@ streamlit run app/BIXI_streamlit_app.py
 ```
 
 ## 📁 Project Structure
-```
+```text
 ├── app/                          # Streamlit dashboard source code
-├── data/                         # Minimal processed artifacts required for the live demo
-├── figures/                      # Model evaluation plots used in reports and documentation
-│   ├── BIXI_SHAP_PLOT.png        # Feature importance and directional impact analysis
+├── data/                         # Minimal processed artifacts for the live demo
+├── figures/                      # Model evaluation plots
+│   ├── BIXI_SHAP_PLOT.png        # Feature importance (SHAP)
 │   ├── BIXI_Feature_Importance   # Global feature ranking
-│   ├── Residual_Distribution     # Error analysis and model bias check
-│   └── OneWeekTimeSeries         # Comparative visualization of actual vs. predicted demand
-├── models/                       # Serialized model binaries
-│   ├── hgb_BIXI_model_v1.pkl     # Final Gradient Boosting model (Lightweight/Production)
-│   └── rf_BIXI_model_v1.pkl      # Random Forest model 
+│   ├── Residual_Distribution     # Error analysis plot
+│   └── OneWeekTimeSeries         # Actual vs. Predicted comparison
+├── models/                       # Serialized model binaries (.pkl)
+│   ├── hgb_BIXI_model_v1.pkl     # Final HGB model (Lightweight)
+│   └── rf_BIXI_model_v1.pkl      # Random Forest model (Baseline)
 ├── notebooks/                    # End-to-end data science pipeline
-│   ├── 01_Data Cleaning.ipynb    # Raw BIXI trip data processing and aggregation
-│   ├── 02_Initial EDA.ipynb      # Exploration of ridership trends and seasonality
-│   ├── 03_Feature Engineering.ipynb # Sinusoidal encoding, lags, and weather integration
-│   ├── 04_Post-FE_EDA.ipynb      # EDA for Post Feature Engineering
-│   ├── 05_Modeling.ipynb         # Model training, hyperparameter tuning, and selection
-│   └── 06_Backtesting_forecast.ipynb      # Performance validation on out-of-sample 2025 data
+│   ├── 01_Data Cleaning.ipynb
+│   ├── 02_Initial EDA.ipynb
+│   ├── 03_Feature Engineering.ipynb
+│   ├── 04_Post-FE_EDA.ipynb
+│   ├── 05_Modeling.ipynb
+│   └── 06_Backtesting_forecast.ipynb
 ├── report/                       # Formal documentation
-│   └── BIXI_Full_Report.pdf      # Detailed business and technical project report
-├── .gitignore                    # Prevents large datasets and temporary files from being committed
+│   └── BIXI_Demand_Forecasting_Full_Report.pdf
+├── .gitignore                    # Prevents large data/model uploads
 ├── README.md                     # Project overview and instructions
-└── requirements.txt              # Environment dependencies for reproducibility
+└── requirements.txt              # Environment dependencies
 ```
 
 ## 📊 Data & Model Note
@@ -135,7 +135,7 @@ Calendar effects are minor
 
 Demand follows stable routines; weather adjusts demand but rarely overrides time-based patterns.
 
-![SHAP Global Summary](figures/BIXI_SHAP_PLOT.png)
+![SHAP Global Summary](figures/BIXI_SHAP%20PLOT.png)
 
 ## 📈 **2025 Walk-Forward Forecast (Backtest)**
 
