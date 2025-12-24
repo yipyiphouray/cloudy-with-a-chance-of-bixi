@@ -4,6 +4,9 @@ import numpy as np
 import joblib
 from datetime import datetime
 from pathlib import Path
+import os
+import traceback
+
 
 # -----------------------------
 #PATHS
@@ -19,24 +22,25 @@ PROCESSED_DIR = DATA_DIR / 'processed'
 
 MODEL_DIR = PROJECT_ROOT / 'models'
 
-import os
-import traceback
 
 st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
 
-st.write("### Debug (cloud)")
-st.write("CWD:", os.getcwd())
-st.write("PROJECT_ROOT:", str(PROJECT_ROOT))
-st.write("MODEL_DIR:", str(MODEL_DIR), "exists?", MODEL_DIR.exists())
-st.write("PROCESSED_DIR:", str(PROCESSED_DIR), "exists?", PROCESSED_DIR.exists())
+st.markdown("""
+### What does this app do?
 
-if MODEL_DIR.exists():
-    st.write("models/:", sorted([p.name for p in MODEL_DIR.glob("*")]))
+This dashboard forecasts **hourly bike demand at individual BIXI stations in Montréal**.
 
-if PROCESSED_DIR.exists():
-    st.write("data/processed/:", sorted([p.name for p in PROCESSED_DIR.glob("*")]))
+It uses:
+- Historical station usage
+- Temporal patterns (hour, weekday, seasonality)
+- Weather conditions
+- Short-term demand inertia (lags & rolling averages)
 
-
+You can now:
+- Predict demand for a **single hour**
+- Generate a **24-hour rolling forecast**
+- Inspect **2025 backtesting performance**
+""")
 
 # datetime column confirmed 
 DT_COL = "starttime_hourly"
