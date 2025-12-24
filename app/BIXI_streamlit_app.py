@@ -84,10 +84,18 @@ def load_model_df(path: Path) -> pd.DataFrame:
     return df
 
 @st.cache_data(show_spinner=False)
-def load_forecast_2025(path: Path) -> pd.DataFrame:
+def load_forecast_2025_for_station(path: Path, station_name: str) -> pd.DataFrame:
     keep_cols = ["startstationname", "starttime_hourly", "total_demand", "y_pred"]
-    df = pd.read_parquet(path, columns=keep_cols)
-    df["startstationname"] = df["startstationname"].astype("category")
+
+    # IMPORTANT: use raw station name for pushdown first
+    df = pd.read_parquet(
+        path,
+        columns=keep_cols,
+        engine="pyarrow",
+        filters=[("startstationname", "==", station_name)],
+    )
+
+    # types
     df["starttime_hourly"] = pd.to_datetime(df["starttime_hourly"])
     return df
 
@@ -369,7 +377,7 @@ with tab3:
     st.subheader("Backtesting results (from forecast_2025.parquet)")
 
     try:
-        bt = load_forecast_2025(PROCESSED_DIR/'forecast_2025.parquet').copy()
+        bt = load_forecast_2025_for_station(PROCESSED_DIR/'forecast_2025.parquet').copy()
 
         # infer columns
         st_col_bt = infer_station_col(bt) if any(c in bt.columns for c in ["startstationname", "station", "station_name", "name"]) else None
@@ -380,7 +388,10 @@ with tab3:
         # filter station using normalized key
         selected_key = normalize_station_name(pd.Series([station])).iloc[0]
 
-        bt_station = bt[bt["_station_key"] == selected_key].copy()
+        bt_station = load_forecast_2025_for_station(
+        PROCESSED_DIR / "forecast_2025.parquet",
+        station
+        ).copy()
 
         # overall metrics (station-filtered)
         bt_station = bt_station.dropna(subset=[actual_col, pred_col])
