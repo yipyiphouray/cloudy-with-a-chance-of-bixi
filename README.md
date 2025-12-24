@@ -47,8 +47,7 @@ streamlit run app/BIXI_streamlit_app.py
 │   ├── Residual_Distribution     # Error analysis plot
 │   └── OneWeekTimeSeries         # Actual vs. Predicted comparison
 ├── models/                       # Serialized model binaries (.pkl)
-│   ├── hgb_BIXI_model_v1.pkl     # Final HGB model (Lightweight)
-│   └── rf_BIXI_model_v1.pkl      # Random Forest model (Baseline)
+│   ├── hgb_BIXI_DemandForecast_model_v1.pkl     # Final HGB model (Lightweight)
 ├── notebooks/                    # End-to-end data science pipeline
 │   ├── 01_Data Cleaning.ipynb
 │   ├── 02_Initial EDA.ipynb
