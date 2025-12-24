@@ -226,7 +226,6 @@ def rmse(y_true, y_pred):
 # -----------------------------
 # UI
 # -----------------------------
-st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
 st.title("🚲 BIXI — Hourly Station Demand Forecast")
 
 # Load assets
