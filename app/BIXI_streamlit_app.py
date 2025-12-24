@@ -377,55 +377,38 @@ with tab3:
     st.subheader("Backtesting results (from forecast_2025.parquet)")
 
     try:
-        bt = load_forecast_2025_for_station(PROCESSED_DIR/'forecast_2025.parquet').copy()
-
-        # infer columns
-        st_col_bt = infer_station_col(bt) if any(c in bt.columns for c in ["startstationname", "station", "station_name", "name"]) else None
-        bt["_station_key"] = normalize_station_name(bt[st_col_bt])
         actual_col = "total_demand"
         pred_col = "y_pred"
 
-        # filter station using normalized key
-        selected_key = normalize_station_name(pd.Series([station])).iloc[0]
-
         bt_station = load_forecast_2025_for_station(
-        PROCESSED_DIR / "forecast_2025.parquet",
-        station
+            PROCESSED_DIR / "forecast_2025.parquet",
+            station
         ).copy()
 
-        # overall metrics (station-filtered)
         bt_station = bt_station.dropna(subset=[actual_col, pred_col])
+
         if bt_station.empty:
             st.warning("No rows found for this station in forecast_2025.parquet (or missing actual/pred columns).")
         else:
-            overall_mae = mae(bt_station[actual_col], bt_station[pred_col])
-            overall_rmse = rmse(bt_station[actual_col], bt_station[pred_col])
-
             c1, c2 = st.columns(2)
-            c1.metric("MAE", f"{overall_mae:.3f}")
-            c2.metric("RMSE", f"{overall_rmse:.3f}")
+            c1.metric("MAE", f"{mae(bt_station[actual_col], bt_station[pred_col]):.3f}")
+            c2.metric("RMSE", f"{rmse(bt_station[actual_col], bt_station[pred_col]):.3f}")
 
-            # time series plot
-            if DT_COL in bt_station.columns:
-                plot_df = bt_station.sort_values(DT_COL).set_index(DT_COL)[[actual_col, pred_col]]
-                plot_df.columns = ["actual", "predicted"]
-                st.line_chart(plot_df)
+            plot_df = bt_station.sort_values(DT_COL).set_index(DT_COL)[[actual_col, pred_col]]
+            plot_df.columns = ["actual", "predicted"]
+            st.line_chart(plot_df)
 
-            # optional: by-day table
-            if DT_COL in bt_station.columns:
-                bt_station["date"] = bt_station[DT_COL].dt.date
-                by_day = bt_station.groupby("date").apply(
-                    lambda g: pd.Series({
-                        "MAE": mae(g[actual_col], g[pred_col]),
-                        "RMSE": rmse(g[actual_col], g[pred_col]),
-                        "n_hours": len(g),
-                    })
-                ).reset_index().sort_values("date")
-                st.dataframe(by_day)
+            bt_station["date"] = bt_station[DT_COL].dt.date
+            by_day = bt_station.groupby("date").apply(
+                lambda g: pd.Series({
+                    "MAE": mae(g[actual_col], g[pred_col]),
+                    "RMSE": rmse(g[actual_col], g[pred_col]),
+                    "n_hours": len(g),
+                })
+            ).reset_index().sort_values("date")
 
-    except Exception as e:
-        st.error(
-            "Backtesting tab couldn't load or parse forecast_2025.parquet.\n\n"
-            f"Error: {e}"
-        )
-        st.info("Tip: open forecast_2025.parquet in Python and check its columns; then we’ll align the app to them.")
+            st.dataframe(by_day)
+
+    except Exception:
+        st.error("Backtesting tab couldn't load or parse forecast_2025.parquet.")
+        st.code(traceback.format_exc())
