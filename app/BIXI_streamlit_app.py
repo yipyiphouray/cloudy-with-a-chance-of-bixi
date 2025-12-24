@@ -19,6 +19,24 @@ PROCESSED_DIR = DATA_DIR / 'processed'
 
 MODEL_DIR = PROJECT_ROOT / 'models'
 
+import os
+import traceback
+
+st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
+
+st.write("### Debug (cloud)")
+st.write("CWD:", os.getcwd())
+st.write("PROJECT_ROOT:", str(PROJECT_ROOT))
+st.write("MODEL_DIR:", str(MODEL_DIR), "exists?", MODEL_DIR.exists())
+st.write("PROCESSED_DIR:", str(PROCESSED_DIR), "exists?", PROCESSED_DIR.exists())
+
+if MODEL_DIR.exists():
+    st.write("models/:", sorted([p.name for p in MODEL_DIR.glob("*")]))
+
+if PROCESSED_DIR.exists():
+    st.write("data/processed/:", sorted([p.name for p in PROCESSED_DIR.glob("*")]))
+
+
 
 # datetime column confirmed 
 DT_COL = "starttime_hourly"
@@ -212,8 +230,20 @@ st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
 st.title("🚲 BIXI — Hourly Station Demand Forecast")
 
 # Load assets
-model = joblib.load(MODEL_DIR/'hgb_BIXI_DemandForecast_model_v1.pkl')
-model_df = load_parquet(PROCESSED_DIR/'model_df.parquet')
+try:
+    model = joblib.load(MODEL_DIR / "hgb_BIXI_DemandForecast_model_v1.pkl")
+    st.success("✅ Model loaded")
+except Exception as e:
+    st.error("❌ Model load failed")
+    st.code(traceback.format_exc())
+    st.stop()
+try:
+    model_df = load_parquet(PROCESSED_DIR / "model_df.parquet")
+    st.success("✅ model_df loaded")
+except Exception as e:
+    st.error("❌ model_df load failed")
+    st.code(traceback.format_exc())
+    st.stop()
 
 # Station selection + coords
 station_col = infer_station_col(model_df)
