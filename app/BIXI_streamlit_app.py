@@ -58,9 +58,24 @@ TARGET = "total_demand"
 # -----------------------------
 
 
-@st.cache_data
-def load_parquet(path: str) -> pd.DataFrame:
-    df = pd.read_parquet(path)
+@st.cache_data(show_spinner=False)
+def load_model_df(path: Path) -> pd.DataFrame:
+    # only keep what's needed for the app
+    keep_cols = [
+        "startstationname", "starttime_hourly", "total_demand",
+        "latitude", "longitude",
+        # needed for building features from history:
+        "lag_1h", "lag_24h", "rolling_3h", "rolling_24h",
+    ]
+    df = pd.read_parquet(path, columns=keep_cols)
+
+    # lighter types
+    df["startstationname"] = df["startstationname"].astype("category")
+    df["latitude"] = df["latitude"].astype("float32")
+    df["longitude"] = df["longitude"].astype("float32")
+    df["total_demand"] = df["total_demand"].astype("float32")
+
+    df["starttime_hourly"] = pd.to_datetime(df["starttime_hourly"])
     return df
 
 
@@ -237,7 +252,7 @@ except Exception as e:
     st.code(traceback.format_exc())
     st.stop()
 try:
-    model_df = load_parquet(PROCESSED_DIR / "model_df.parquet")
+    model_df = load_model_df(PROCESSED_DIR / "model_df.parquet")
     st.success("✅ model_df loaded")
 except Exception as e:
     st.error("❌ model_df load failed")
@@ -329,7 +344,7 @@ with tab3:
     st.subheader("Backtesting results (from forecast_2025.parquet)")
 
     try:
-        bt = load_parquet(PROCESSED_DIR/'forecast_2025.parquet').copy()
+        bt = load_model_df(PROCESSED_DIR/'forecast_2025.parquet').copy()
 
         # infer columns
         bt[DT_COL] = pd.to_datetime(bt[DT_COL]) if DT_COL in bt.columns else bt.get(DT_COL)
