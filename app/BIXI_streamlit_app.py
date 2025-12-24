@@ -1,0 +1,352 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+from datetime import datetime
+from pathlib import Path
+
+# -----------------------------
+#PATHS
+# -----------------------------
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+DATA_DIR = PROJECT_ROOT / 'data' 
+
+RAW_DIR = DATA_DIR / 'raw'
+
+PROCESSED_DIR = DATA_DIR / 'processed'
+
+MODEL_DIR = PROJECT_ROOT / 'models'
+
+
+# datetime column confirmed 
+DT_COL = "starttime_hourly"
+
+# -----------------------------
+# final feature set
+# -----------------------------
+FEATURES = [
+    "temperature", "precipitation", "wind_speed",
+    "latitude", "longitude", "hour", "day_of_week", "is_weekend", "month",
+    "hour_sin", "hour_cos", "day_of_week_sin", "day_of_week_cos",
+    "feels_like_temp", "is_raining", "lag_1h", "lag_24h", "rolling_3h", "rolling_24h"
+]
+TARGET = "total_demand"
+
+
+# -----------------------------
+# Loaders
+# -----------------------------
+
+
+@st.cache_data
+def load_parquet(path: str) -> pd.DataFrame:
+    df = pd.read_parquet(path)
+    return df
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def add_time_features(ts: pd.Timestamp) -> dict:
+    hour = int(ts.hour)
+    dow = int(ts.dayofweek)  # Mon=0
+    month = int(ts.month)
+    is_weekend = int(dow >= 5)
+
+    hour_sin = np.sin(2 * np.pi * hour / 24)
+    hour_cos = np.cos(2 * np.pi * hour / 24)
+    dow_sin = np.sin(2 * np.pi * dow / 7)
+    dow_cos = np.cos(2 * np.pi * dow / 7)
+
+    return {
+        "hour": hour,
+        "day_of_week": dow,
+        "is_weekend": is_weekend,
+        "month": month,
+        "hour_sin": hour_sin,
+        "hour_cos": hour_cos,
+        "day_of_week_sin": dow_sin,
+        "day_of_week_cos": dow_cos,
+    }
+
+
+def compute_feels_like_temp(temp_c: float, wind_speed: float) -> float:
+    # Your prior definition
+    return float(temp_c - 0.7 * wind_speed)
+
+
+def infer_station_col(df: pd.DataFrame) -> str:
+    for col in ["startstationname", "station", "station_name", "name"]:
+        if col in df.columns:
+            return col
+    raise ValueError("Could not find station name column. Expected one of: "
+                     "startstationname, station, station_name, name")
+
+
+def get_station_history(df: pd.DataFrame, station_col: str, station_name: str) -> pd.DataFrame:
+    out = df[df[station_col] == station_name].copy()
+    out[DT_COL] = pd.to_datetime(out[DT_COL])
+    out = out.sort_values(DT_COL)
+    return out
+
+
+def latest_context_for_timestamp(hist: pd.DataFrame, ts: pd.Timestamp):
+    """
+    Compute lag/rolling from ACTUAL history up to ts-1h.
+    """
+    cutoff = ts - pd.Timedelta(hours=1)
+    past = hist[hist[DT_COL] <= cutoff].copy()
+    if past.empty:
+        return None
+
+    s = past.set_index(DT_COL)[TARGET].sort_index()
+
+    lag_1h = s.iloc[-1] if len(s) >= 1 else np.nan
+
+    t24 = ts - pd.Timedelta(hours=24)
+    if t24 in s.index:
+        lag_24h = s.loc[t24]
+    else:
+        older = s[s.index <= t24]
+        lag_24h = older.iloc[-1] if len(older) else np.nan
+
+    rolling_3h = s.tail(3).mean() if len(s) else np.nan
+    rolling_24h = s.tail(24).mean() if len(s) else np.nan
+
+    return float(lag_1h), float(lag_24h), float(rolling_3h), float(rolling_24h)
+
+
+def build_feature_row(station_lat: float, station_lon: float, ts: pd.Timestamp, weather: dict, context: tuple) -> pd.DataFrame:
+    lag_1h, lag_24h, rolling_3h, rolling_24h = context
+
+    temp = float(weather["temperature"])
+    precip = float(weather["precipitation"])
+    wind = float(weather["wind_speed"])
+    is_raining = int(precip > 0)
+
+    row = {
+        "temperature": temp,
+        "precipitation": precip,
+        "wind_speed": wind,
+        "latitude": float(station_lat),
+        "longitude": float(station_lon),
+        **add_time_features(ts),
+        "feels_like_temp": compute_feels_like_temp(temp, wind),
+        "is_raining": is_raining,
+        "lag_1h": float(lag_1h),
+        "lag_24h": float(lag_24h),
+        "rolling_3h": float(rolling_3h),
+        "rolling_24h": float(rolling_24h),
+    }
+    return pd.DataFrame([row], columns=FEATURES)
+
+
+def recursive_24h_forecast(model, hist: pd.DataFrame, station_lat: float, station_lon: float, start_ts: pd.Timestamp, weather: dict):
+    """
+    Recursive 24h rollout. Uses past actuals + prior predictions as context.
+    """
+    past = hist.copy()
+    past[DT_COL] = pd.to_datetime(past[DT_COL])
+    past = past.set_index(DT_COL)[TARGET].sort_index()
+
+    preds = []
+    for h in range(24):
+        ts = start_ts + pd.Timedelta(hours=h)
+
+        cutoff = ts - pd.Timedelta(hours=1)
+        known = past[past.index <= cutoff]
+        if known.empty:
+            raise ValueError("Not enough history to compute lag features for this station/time.")
+
+        lag_1h = float(known.iloc[-1])
+
+        t24 = ts - pd.Timedelta(hours=24)
+        if t24 in past.index:
+            lag_24h = float(past.loc[t24])
+        else:
+            older = past[past.index <= t24]
+            lag_24h = float(older.iloc[-1]) if len(older) else lag_1h
+
+        rolling_3h = float(known.tail(3).mean())
+        rolling_24h = float(known.tail(24).mean())
+
+        X = build_feature_row(
+            station_lat=station_lat,
+            station_lon=station_lon,
+            ts=ts,
+            weather=weather,
+            context=(lag_1h, lag_24h, rolling_3h, rolling_24h),
+        )
+
+        yhat = float(model.predict(X)[0])
+        yhat = max(0.0, yhat)
+
+        preds.append({"timestamp": ts, "predicted_demand": yhat})
+
+        # inject prediction into series for next steps
+        past.loc[ts] = yhat
+
+    return pd.DataFrame(preds)
+
+
+
+
+def mae(y_true, y_pred):
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    return float(np.mean(np.abs(y_true - y_pred)))
+
+
+def rmse(y_true, y_pred):
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+
+
+# -----------------------------
+# UI
+# -----------------------------
+st.set_page_config(page_title="BIXI Demand Forecast", layout="wide")
+st.title("🚲 BIXI — Hourly Station Demand Forecast")
+
+# Load assets
+model = joblib.load(MODEL_DIR/'hgb_BIXI_DemandForecast_model_v1.pkl')
+model_df = load_parquet(PROCESSED_DIR/'model_df.parquet')
+
+# Station selection + coords
+station_col = infer_station_col(model_df)
+stations = sorted(model_df[station_col].dropna().unique().tolist())
+
+station = st.selectbox("Select station", stations)
+station_hist = get_station_history(model_df, station_col, station)
+
+if "latitude" not in station_hist.columns or "longitude" not in station_hist.columns:
+    st.error("Your model_df parquet must include latitude and longitude columns.")
+    st.stop()
+
+station_lat = float(station_hist["latitude"].iloc[0])
+station_lon = float(station_hist["longitude"].iloc[0])
+
+with st.expander("Manual weather inputs", expanded=True):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        temperature = st.number_input("Temperature (°C)", value=10.0, step=0.5)
+    with c2:
+        precipitation = st.number_input("Precipitation (mm)", value=0.0, step=0.5, min_value=0.0)
+    with c3:
+        wind_speed = st.number_input("Wind speed (m/s)", value=3.0, step=0.5, min_value=0.0)
+
+weather = {"temperature": temperature, "precipitation": precipitation, "wind_speed": wind_speed}
+
+tab1, tab2, tab3 = st.tabs(["Single prediction", "24-hour forecast", "Backtesting (2025)"])
+
+
+# -----------------------------
+# Single
+# -----------------------------
+with tab1:
+    st.subheader("Single prediction (one hour)")
+
+    d = st.date_input("Date", value=pd.Timestamp.now().date(), key="single_date")
+    t = st.time_input(
+        "Time (hour)",
+        value=pd.Timestamp.now().replace(minute=0, second=0, microsecond=0).time(),
+        key="single_time"
+    )
+    ts = pd.Timestamp.combine(d, t)
+
+    if st.button("Predict this hour"):
+        ctx = latest_context_for_timestamp(station_hist, ts)
+        if ctx is None:
+            st.error("Not enough history for this station/time to compute lag/rolling features.")
+        else:
+            X = build_feature_row(station_lat, station_lon, ts, weather, ctx)
+            yhat = float(model.predict(X)[0])
+            yhat = max(0.0, yhat)
+
+            st.metric("Predicted demand (trips)", f"{yhat:.2f}")
+            with st.expander("Show feature row"):
+                st.dataframe(X)
+
+
+# -----------------------------
+# 24h forecast
+# -----------------------------
+with tab2:
+    st.subheader("24-hour forecast (recursive)")
+
+    d2 = st.date_input("Start date", value=pd.Timestamp.now().date(), key="day_date")
+    start_hour = st.selectbox("Start hour", list(range(24)), index=8)
+    start_ts = pd.Timestamp.combine(
+        pd.Timestamp(d2),
+        datetime.strptime(f"{start_hour:02d}:00", "%H:%M").time()
+    )
+
+    if st.button("Generate 24-hour forecast"):
+        try:
+            fc = recursive_24h_forecast(model, station_hist, station_lat, station_lon, start_ts, weather)
+            st.dataframe(fc)
+            st.line_chart(fc.set_index("timestamp")["predicted_demand"])
+        except Exception as e:
+            st.error(str(e))
+
+
+# -----------------------------
+# Backtesting
+# -----------------------------
+with tab3:
+    st.subheader("Backtesting results (from forecast_2025.parquet)")
+
+    try:
+        bt = load_parquet(PROCESSED_DIR/'forecast_2025.parquet').copy()
+
+        # infer columns
+        bt[DT_COL] = pd.to_datetime(bt[DT_COL]) if DT_COL in bt.columns else bt.get(DT_COL)
+        st_col_bt = infer_station_col(bt) if any(c in bt.columns for c in ["startstationname", "station", "station_name", "name"]) else None
+        actual_col = "total_demand"
+        pred_col = "y_pred"
+
+        # filter station if possible
+        if st_col_bt:
+            bt_station = bt[bt[st_col_bt] == station].copy()
+        else:
+            bt_station = bt.copy()
+
+        # overall metrics (station-filtered)
+        bt_station = bt_station.dropna(subset=[actual_col, pred_col])
+        if bt_station.empty:
+            st.warning("No rows found for this station in forecast_2025.parquet (or missing actual/pred columns).")
+        else:
+            overall_mae = mae(bt_station[actual_col], bt_station[pred_col])
+            overall_rmse = rmse(bt_station[actual_col], bt_station[pred_col])
+
+            c1, c2 = st.columns(2)
+            c1.metric("MAE", f"{overall_mae:.3f}")
+            c2.metric("RMSE", f"{overall_rmse:.3f}")
+
+            # time series plot
+            if DT_COL in bt_station.columns:
+                plot_df = bt_station.sort_values(DT_COL).set_index(DT_COL)[[actual_col, pred_col]]
+                plot_df.columns = ["actual", "predicted"]
+                st.line_chart(plot_df)
+
+            # optional: by-day table
+            if DT_COL in bt_station.columns:
+                bt_station["date"] = bt_station[DT_COL].dt.date
+                by_day = bt_station.groupby("date").apply(
+                    lambda g: pd.Series({
+                        "MAE": mae(g[actual_col], g[pred_col]),
+                        "RMSE": rmse(g[actual_col], g[pred_col]),
+                        "n_hours": len(g),
+                    })
+                ).reset_index().sort_values("date")
+                st.dataframe(by_day)
+
+    except Exception as e:
+        st.error(
+            "Backtesting tab couldn't load or parse forecast_2025.parquet.\n\n"
+            f"Error: {e}"
+        )
+        st.info("Tip: open forecast_2025.parquet in Python and check its columns; then we’ll align the app to them.")
