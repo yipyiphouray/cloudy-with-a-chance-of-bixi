@@ -61,7 +61,28 @@ TARGET = "total_demand"
 # -----------------------------
 # Loaders
 # -----------------------------
+@st.cache_data(show_spinner=False)
+def load_station_lookup(path: Path) -> pd.DataFrame:
+    df = pd.read_parquet(path, columns=["startstationname","latitude","longitude"])
+    df["startstationname"] = df["startstationname"].astype("category")
+    df["latitude"] = df["latitude"].astype("float32")
+    df["longitude"] = df["longitude"].astype("float32")
+    return df
 
+@st.cache_data(show_spinner=False)
+def load_station_history(path: Path, station_name: str) -> pd.DataFrame:
+    keep_cols = ["startstationname","starttime_hourly","total_demand","latitude","longitude"]
+    df = pd.read_parquet(
+        path,
+        columns=keep_cols,
+        engine="pyarrow",
+        filters=[("startstationname", "==", station_name)],
+    )
+    df["starttime_hourly"] = pd.to_datetime(df["starttime_hourly"])
+    df["total_demand"] = df["total_demand"].astype("float32")
+    df["latitude"] = df["latitude"].astype("float32")
+    df["longitude"] = df["longitude"].astype("float32")
+    return df.sort_values("starttime_hourly")
 
 @st.cache_data(show_spinner=False)
 def load_model_df(path: Path) -> pd.DataFrame:
@@ -285,26 +306,30 @@ except Exception as e:
     st.stop()
 try:
     model_df = load_model_df(PROCESSED_DIR / "model_df.parquet")
+    try:
+        stations_df = load_station_lookup(PROCESSED_DIR / "stations.parquet")
+        st.success("✅ stations lookup loaded")
+    except Exception:
+        st.error("❌ stations.parquet load failed (expected at data/processed/stations.parquet)")
+        st.code(traceback.format_exc())
+        st.stop()
+
     st.success("✅ model_df loaded")
 except Exception as e:
     st.error("❌ model_df load failed")
     st.code(traceback.format_exc())
     st.stop()
 
-# Station selection + coords
-station_col = infer_station_col(model_df)
-model_df["_station_key"] = normalize_station_name(model_df[station_col])
-stations = sorted(model_df[station_col].dropna().unique().tolist())
-
+# Station selection + coords (from tiny stations.parquet)
+stations = stations_df["startstationname"].astype(str).sort_values().tolist()
 station = st.selectbox("Select station", stations)
-station_hist = get_station_history(model_df, station_col, station)
 
-if "latitude" not in station_hist.columns or "longitude" not in station_hist.columns:
-    st.error("Your model_df parquet must include latitude and longitude columns.")
-    st.stop()
+row = stations_df.loc[stations_df["startstationname"].astype(str) == station].iloc[0]
+station_lat = float(row["latitude"])
+station_lon = float(row["longitude"])
 
-station_lat = float(station_hist["latitude"].iloc[0])
-station_lon = float(station_hist["longitude"].iloc[0])
+# Station history (choose ONE approach)
+station_hist = load_station_history(PROCESSED_DIR / "model_df.parquet", station)
 
 with st.expander("Manual weather inputs", expanded=True):
     c1, c2, c3 = st.columns(3)
