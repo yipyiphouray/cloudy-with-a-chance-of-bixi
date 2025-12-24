@@ -344,6 +344,13 @@ row = stations_df.loc[stations_df["startstationname"].astype(str) == station].il
 station_lat = float(row["latitude"])
 station_lon = float(row["longitude"])
 
+st.markdown("### Selected station location")
+st.caption(f"{station} — ({station_lat:.5f}, {station_lon:.5f})")
+
+map_df = pd.DataFrame({"lat": [station_lat], "lon": [station_lon]})
+st.map(map_df, zoom=13)
+
+
 # Station history (choose ONE approach)
 station_hist = load_station_history(PROCESSED_DIR / "model_df.parquet", station)
 
