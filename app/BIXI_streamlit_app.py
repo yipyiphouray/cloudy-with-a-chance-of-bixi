@@ -411,9 +411,15 @@ with tab3:
         ).copy()
 
         bt_station = bt_station.dropna(subset=[actual_col, pred_col])
+        
+        st.caption(f"Loaded {len(bt_station):,} backtest rows for **{station}**")
+
 
         if bt_station.empty:
-            st.warning("No rows found for this station in forecast_2025.parquet (or missing actual/pred columns).")
+            st.info(
+            "📌 Backtesting will appear here once you select a station that exists in the 2025 backtest file.\n\n"
+            "If you just changed stations, give it a second — Streamlit is loading the filtered rows."
+            )
         else:
             c1, c2 = st.columns(2)
             c1.metric("MAE", f"{mae(bt_station[actual_col], bt_station[pred_col]):.3f}")
