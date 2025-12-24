@@ -35,10 +35,10 @@ pip install -r requirements.txt
 
 # Run the Streamlit app
 streamlit run app/BIXI_streamlit_app.py
-'''
+```
 
 ## 📁 Project Structure
-'''
+```
 ├── app/                          # Streamlit dashboard source code
 ├── data/                         # Minimal processed artifacts required for the live demo
 ├── figures/                      # Model evaluation plots used in reports and documentation
@@ -61,7 +61,7 @@ streamlit run app/BIXI_streamlit_app.py
 ├── .gitignore                    # Prevents large datasets and temporary files from being committed
 ├── README.md                     # Project overview and instructions
 └── requirements.txt              # Environment dependencies for reproducibility
-'''
+```
 
 ## 📊 Data & Model Note
 
