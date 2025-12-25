@@ -210,19 +210,19 @@ This accuracy level enables:
 
 ### Limitations
 
-No explicit event data (festivals, disruptions)
+* No explicit event data (festivals, disruptions)
 
-Rebalancing actions not modeled
+* Rebalancing actions not modeled
 
-Hourly (not real-time) resolution
+* Hourly (not real-time) resolution
 
 ### Future improvements
 
-Event & transit disruption features
+* Event & transit disruption features
 
-Richer spatial context (zones, transit proximity)
+* Richer spatial context (zones, transit proximity)
 
-Shorter time intervals (15-min forecasting)
+* Shorter time intervals (15-min forecasting)
 
 ## 🏭 **Production Considerations**
 
