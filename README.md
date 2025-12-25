@@ -4,7 +4,7 @@ Hourly Bike-Sharing Demand Forecasting for BIXI Montréal
 End-to-end machine learning project that forecasts hourly bike demand per station to support rebalancing and capacity planning.
 
 Key result:
-MAE ≈ 2 trips per station per hour on 2025 out-of-sample data
+➡️ MAE ≈ 2 trips per station per hour on 2025 out-of-sample data
 
 ## ⚡ **TL;DR (30 seconds)**
 
@@ -36,6 +36,17 @@ pip install -r requirements.txt
 # Run the Streamlit app
 streamlit run app/BIXI_streamlit_app.py
 ```
+## 🖥️ Interactive Application (Streamlit)
+
+The Streamlit dashboard allows users to:
+Select any BIXI station in Montréal
+Predict demand for a single hour
+Generate a recursive 24-hour forecast using user-defined weather assumptions
+Visualize station location on a map
+Inspect 2025 backtesting performance
+Understand why a prediction was made using lightweight explainability
+
+This mirrors how demand forecasts would be consumed in a real operational setting.
 
 ## 📁 Project Structure
 ```text
@@ -43,9 +54,9 @@ streamlit run app/BIXI_streamlit_app.py
 ├── data/                         # Minimal processed artifacts for the live demo
 ├── figures/                      # Model evaluation plots
 │   ├── BIXI_SHAP_PLOT.png        # Feature importance (SHAP)
-│   ├── BIXI_Feature_Importance   # Global feature ranking
-│   ├── Residual_Distribution     # Error analysis plot
-│   └── OneWeekTimeSeries         # Actual vs. Predicted comparison
+│   ├── BIXI_Feature_Importance.png   # Global feature ranking
+│   ├── Residual_Distribution.png     # Error analysis plot
+│   └── OneWeekTimeSeries.png         # Actual vs. Predicted comparison
 ├── models/                       # Serialized model binaries (.pkl)
 │   ├── hgb_BIXI_DemandForecast_model_v1.pkl     # Final HGB model (Lightweight)
 ├── notebooks/                    # End-to-end data science pipeline
@@ -77,9 +88,16 @@ Large raw/processed datasets are excluded to keep the repo lightweight:
 - `models/rf_*.pkl` (≈385MB)
 
 ### To Run Locally:
-* **Download Raw Data:** Visit the [BIXI Open Data Portal](https://bixi.com/en/open-data) and place the CSVs in `data/raw/`.  !!! Remember to name them as BIXI_Trip_XXXX.csv where XXXX is the year of the dataset.  !! Weather API does not need an API key !!
-* **Reproduce:** Run the notebooks in order (`01` to `04`) to generate the processed files.
-* **App Performance:** The Streamlit app is pre-configured to use the **Histogram-based Gradient Boosting (HGB)** model, which is included in the repo (1.4MB).
+
+Reproducing the Full Pipeline
+
+1. Download trip data from the BIXI Open Data Portal
+
+2. Place CSVs in data/raw/ and name them BIXI_Trip_YYYY.csv
+
+3. Run notebooks 01 → 04 to regenerate processed datasets
+
+4. The Streamlit app uses the Histogram-based Gradient Boosting model by default
 
 ## 🧠 **Feature Engineering (Highlights)**
 
@@ -105,7 +123,7 @@ Spatial context
 
 Latitude & longitude (neighborhood effects)
 
-All lag and rolling features are computed strictly within each station’s time series to prevent leakage.
+⚠️ All lag and rolling features are computed strictly within each station’s time series to prevent leakage.
 
 ## 🤖 **Models & Performance**
 | Model | MAE | RMSE | $R^2$ | Training Time |
