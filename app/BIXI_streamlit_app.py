@@ -120,6 +120,15 @@ def load_forecast_2025_for_station(path: Path, station_name: str) -> pd.DataFram
     df["starttime_hourly"] = pd.to_datetime(df["starttime_hourly"])
     return df
 
+@st.cache_data(show_spinner=False)
+def load_feature_stats(path: Path) -> pd.DataFrame:
+    return pd.read_parquet(path)
+
+@st.cache_data(show_spinner=False)
+def load_global_importance(path: Path) -> pd.DataFrame:
+    return pd.read_parquet(path)
+
+
 
 # -----------------------------
 # Helpers
@@ -316,23 +325,19 @@ st.title("🚲 BIXI — Hourly Station Demand Forecast")
 try:
     model = joblib.load(MODEL_DIR / "hgb_BIXI_DemandForecast_model_v1.pkl")
     st.success("✅ Model loaded")
-except Exception as e:
-    st.error("❌ Model load failed")
-    st.code(traceback.format_exc())
-    st.stop()
-try:
-    model_df = load_model_df(PROCESSED_DIR / "model_df.parquet")
-    try:
-        stations_df = load_station_lookup(PROCESSED_DIR / "stations.parquet")
-        st.success("✅ stations lookup loaded")
-    except Exception:
-        st.error("❌ stations.parquet load failed (expected at data/processed/stations.parquet)")
-        st.code(traceback.format_exc())
-        st.stop()
 
+    model_df = load_model_df(PROCESSED_DIR / "model_df.parquet")
     st.success("✅ model_df loaded")
-except Exception as e:
-    st.error("❌ model_df load failed")
+
+    stations_df = load_station_lookup(PROCESSED_DIR / "stations.parquet")
+    st.success("✅ stations lookup loaded")
+
+    feature_stats = load_feature_stats(PROCESSED_DIR / "feature_stats.parquet")
+    global_imp = load_global_importance(PROCESSED_DIR / "feature_importance.parquet")
+    st.success("✅ feature stats & importance loaded")
+
+except Exception:
+    st.error("❌ Failed to load app assets")
     st.code(traceback.format_exc())
     st.stop()
 
@@ -373,27 +378,75 @@ tab1, tab2, tab3 = st.tabs(["Single prediction", "24-hour forecast", "Backtestin
 # -----------------------------
 with tab1:
     st.subheader("Single prediction (one hour)")
-
+    
     d = st.date_input("Date", value=pd.Timestamp.now().date(), key="single_date")
     t = st.time_input(
-        "Time (hour)",
-        value=pd.Timestamp.now().replace(minute=0, second=0, microsecond=0).time(),
-        key="single_time"
-    )
+    "Time (hour)",
+    value=pd.Timestamp.now().replace(minute=0, second=0, microsecond=0).time(),
+    key="single_time"
+)
     ts = pd.Timestamp.combine(d, t)
-
+    
     if st.button("Predict this hour"):
         ctx = latest_context_for_timestamp(station_hist, ts)
         if ctx is None:
             st.error("Not enough history for this station/time to compute lag/rolling features.")
         else:
             X = build_feature_row(station_lat, station_lon, ts, weather, ctx)
-            yhat = float(model.predict(X)[0])
-            yhat = max(0.0, yhat)
+            yhat = max(0.0, float(model.predict(X)[0]))
 
             st.metric("Predicted demand (trips)", f"{yhat:.2f}")
             with st.expander("Show feature row"):
                 st.dataframe(X)
+
+            # ✅ explainability goes HERE
+            st.subheader("Why this prediction? (lightweight explainability)")
+
+            topk = 5
+            top_features = global_imp["feature"].head(topk).tolist()
+
+            stats_top = feature_stats[feature_stats["feature"].isin(top_features)].copy()
+
+            explain_rows = []
+            for f in top_features:
+                xval = float(X.iloc[0][f])
+                row = stats_top.loc[stats_top["feature"] == f].iloc[0]
+                mean, std = float(row["mean"]), float(row["std"])
+                z = (xval - mean) / std if std > 0 else 0.0
+
+                bands = (row["p05"], row["p25"], row["p50"], row["p75"], row["p95"])
+                if xval <= bands[0]:
+                    pct = "≤ p05"
+                elif xval <= bands[1]:
+                    pct = "p05–p25"
+                elif xval <= bands[2]:
+                    pct = "p25–p50"
+                elif xval <= bands[3]:
+                    pct = "p50–p75"
+                elif xval <= bands[4]:
+                    pct = "p75–p95"
+                else:
+                    pct = "≥ p95"
+
+                explain_rows.append({
+                    "feature": f,
+                    "value_used": xval,
+                    "typical_range(p25–p75)": f"{row['p25']:.2f} – {row['p75']:.2f}",
+                    "unusualness_band": pct,
+                    "z_score": z,
+                    "global_importance": float(global_imp.loc[global_imp["feature"] == f, "importance"].iloc[0]),
+                })
+
+            explain_df = (
+                pd.DataFrame(explain_rows)
+                .sort_values("global_importance", ascending=False)
+            )
+            st.dataframe(explain_df, use_container_width=True)
+
+            st.caption("Global importance is model-level. Bands compare your input to training-data distribution.")
+    else:
+        st.info("Click **Predict this hour** to generate an explanation.")
+
 
 
 # -----------------------------
@@ -414,12 +467,12 @@ with tab2:
     for label, hours in [("00–05", range(0,6)), ("06–11", range(6,12)), ("12–17", range(12,18)), ("18–23", range(18,24))]:
         with st.expander(f"Block {label}", expanded=(label=="00–05")):
             c1, c2, c3 = st.columns(3)
-        with c1:
-            temp = st.number_input(f"Temp °C ({label})", value=10.0, step=0.5, key=f"temp_{label}")
-        with c2:
-            prec = st.number_input(f"Precip mm ({label})", value=0.0, step=0.5, min_value=0.0, key=f"prec_{label}")
-        with c3:
-            wind = st.number_input(f"Wind m/s ({label})", value=3.0, step=0.5, min_value=0.0, key=f"wind_{label}")
+            with c1:
+                temp = st.number_input(f"Temp °C ({label})", value=10.0, step=0.5, key=f"temp_{label}")
+            with c2:
+                prec = st.number_input(f"Precip mm ({label})", value=0.0, step=0.5, min_value=0.0, key=f"prec_{label}")
+            with c3:
+                wind = st.number_input(f"Wind m/s ({label})", value=3.0, step=0.5, min_value=0.0, key=f"wind_{label}")
 
         for h in hours:
             blocks[h] = {"temperature": temp, "precipitation": prec, "wind_speed": wind}
