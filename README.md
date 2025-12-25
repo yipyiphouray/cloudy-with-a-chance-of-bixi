@@ -1,3 +1,7 @@
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-App-red)
+![Status](https://img.shields.io/badge/Status-Portfolio%20Ready-brightgreen)
+
 # ⛈️ **Cloudy with a Chance of BIXI** 🚲
 Hourly Bike-Sharing Demand Forecasting for BIXI Montréal
 
