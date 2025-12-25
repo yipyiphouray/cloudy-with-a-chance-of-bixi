@@ -6,6 +6,8 @@ End-to-end machine learning project that forecasts hourly bike demand per statio
 Key result:
 ➡️ MAE ≈ 2 trips per station per hour on 2025 out-of-sample data
 
+🔗 **Live demo:** https://cloudy-with-a-chance-of-bixi.streamlit.app/
+
 ## ⚡ **TL;DR (30 seconds)**
 
 Problem: Stations run empty or full → lost trips & operational inefficiencies
@@ -182,6 +184,15 @@ With an average error of ~2 trips per station per hour, forecasts can support:
 
 At peak hours (10–40 trips/hour), this level of accuracy is operationally meaningful.
 
+## 🧩 Example Operational Use Case
+At a downtown station averaging ~25 trips/hour during peak periods,  
+a 2-trip/hour error represents <10% relative error.
+
+This accuracy level enables:
+- Early rebalancing before stations fully empty
+- Better prioritization of high-risk stations
+- Reduced reactive truck dispatching during peak hours
+
 ## ⚠️ **Limitations & Future Work**
 
 ### Limitations
@@ -199,6 +210,21 @@ Event & transit disruption features
 Richer spatial context (zones, transit proximity)
 
 Shorter time intervals (15-min forecasting)
+
+## 🏭 **Production Considerations**
+
+While this project is presented as a portfolio demo, several design choices were made with production constraints in mind:
+
+- Lightweight final model (HGB) for fast retraining and inference
+- Explicit train/validation/test temporal splits to prevent leakage
+- Recursive forecasting logic aligned with real operational usage
+- Minimal data artifacts committed to version control
+- Streamlit app structured around model inputs/outputs, not notebooks
+
+In a production environment, this system could be extended with:
+- Scheduled retraining (weekly/monthly)
+- Automated weather ingestion
+- Monitoring for prediction drift
 
 ## 🛠 **Tech Stack**
 
