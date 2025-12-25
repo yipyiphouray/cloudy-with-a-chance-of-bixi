@@ -38,13 +38,13 @@ streamlit run app/BIXI_streamlit_app.py
 ```
 ## 🖥️ Interactive Application (Streamlit)
 
-The Streamlit dashboard allows users to:
-Select any BIXI station in Montréal
-Predict demand for a single hour
-Generate a recursive 24-hour forecast using user-defined weather assumptions
-Visualize station location on a map
-Inspect 2025 backtesting performance
-Understand why a prediction was made using lightweight explainability
+* The Streamlit dashboard allows users to:
+* Select any BIXI station in Montréal
+* Predict demand for a single hour
+* Generate a recursive 24-hour forecast using user-defined weather assumptions
+* Visualize station location on a map
+* Inspect 2025 backtesting performance
+* Understand why a prediction was made using lightweight explainability
 
 This mirrors how demand forecasts would be consumed in a real operational setting.
 
