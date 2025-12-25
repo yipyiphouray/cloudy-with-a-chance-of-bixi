@@ -118,25 +118,25 @@ Reproducing the Full Pipeline
 
 Temporal patterns
 
-Hour, day-of-week, month
+- Hour, day-of-week, month
 
-Cyclical encoding transforms periodic features into 2D space, ensuring the model perceives the distance between 23:00 and 00:00 as 1 hour rather than 23 hours
+- Cyclical encoding transforms periodic features into 2D space, ensuring the model perceives the distance between 23:00 and 00:00 as 1 hour rather than 23 hours
 
 Demand inertia
 
-Lagged demand (1h, 24h)
+- Lagged demand (1h, 24h)
 
-Rolling averages (3h, 24h)
+- Rolling averages (3h, 24h)
 
 Weather effects
 
-Feels-like temperature
+- Feels-like temperature
 
-Rain indicator
+- Rain indicator
 
 Spatial context
 
-Latitude & longitude (neighborhood effects)
+- Latitude & longitude (neighborhood effects)
 
 ⚠️ All lag and rolling features are computed strictly within each station’s time series to prevent leakage.
 
