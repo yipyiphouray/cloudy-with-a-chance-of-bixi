@@ -6,7 +6,7 @@ End-to-end machine learning project that forecasts hourly bike demand per statio
 Key result:
 ➡️ MAE ≈ 2 trips per station per hour on 2025 out-of-sample data
 
-🔗 **Live demo:** https://cloudy-with-a-chance-of-bixi.streamlit.app/
+🔗 **Streamlit App link:** https://cloudy-with-a-chance-of-bixi.streamlit.app/
 
 ## ⚡ **TL;DR (30 seconds)**
 
@@ -23,6 +23,15 @@ Performance: MAE ≈ 2 trips/hour, R² ≈ 0.65 (2025 backtest)
 Interpretability: SHAP explains demand drivers
 
 Outcome: Actionable forecasts for rebalancing & planning
+
+## 🎬 Live Demo — Streamlit App
+
+<p align="center">
+  <img src="figures/BIXI_streamlit_app_demo.gif" width="900"/>
+</p>
+
+*Interactive dashboard showing station-level demand forecasts, 24-hour rolling predictions,
+station maps, and lightweight explainability.*
 
 ## 🚀 **Quick Start**
 
