@@ -386,7 +386,7 @@ with tab1:
     key="single_time"
 )
     ts = pd.Timestamp.combine(d, t)
-    
+
     if st.button("Predict this hour"):
         ctx = latest_context_for_timestamp(station_hist, ts)
         if ctx is None:
@@ -399,7 +399,7 @@ with tab1:
             with st.expander("Show feature row"):
                 st.dataframe(X)
 
-            # ✅ explainability goes HERE
+        
             st.subheader("Why this prediction? (lightweight explainability)")
 
             topk = 5
