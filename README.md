@@ -247,3 +247,5 @@ numpy · matplotlib · seaborn · Streamlit
 ## 📄 **Full Report**
 
 📂 report/BIXI_Demand_Forecasting_Full_Report.pdf
+
+*This project is considered a Proof of Concept (PoC) project.
